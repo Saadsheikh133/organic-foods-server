@@ -64,9 +64,19 @@ async function run() {
     });
 
     app.get("/freshFoods", async (req, res) => {
-      const result = await foodCollection.find().toArray();
+      let query = {};
+      if (req.query?.category) {
+        query = { category: req.query.category };
+      }
+      const result = await foodCollection.find(query).toArray();
       res.send(result);
     });
+
+    app.post('/addFood', verifyJWT, async(req, res) => {
+      const addFood = req.body;
+      const result = await foodCollection.insertOne(addFood)
+      res.send(result);
+    })
 
     // user related apis
     app.post("/addUsers", verifyJWT, async (req, res) => {
