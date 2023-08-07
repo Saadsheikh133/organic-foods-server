@@ -15,7 +15,7 @@ app.use(cors(corsConfig));
 // app.use(cors())
 app.use(express.json());
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vuuhbip.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -63,6 +63,18 @@ async function run() {
       res.send(token);
     });
 
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden access!" });
+      }
+      next();
+    };
+
     app.get("/freshFoods", async (req, res) => {
       let query = {};
       if (req.query?.category) {
@@ -72,11 +84,11 @@ async function run() {
       res.send(result);
     });
 
-    app.post('/addFood', verifyJWT, async(req, res) => {
+    app.post("/addFood", verifyJWT, verifyAdmin, async (req, res) => {
       const addFood = req.body;
-      const result = await foodCollection.insertOne(addFood)
+      const result = await foodCollection.insertOne(addFood);
       res.send(result);
-    })
+    });
 
     // user related apis
     app.post("/addUsers", verifyJWT, async (req, res) => {
@@ -90,10 +102,30 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/findUsers", verifyJWT, async (req, res) => {
+    app.get("/findUsers", verifyJWT, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
+
+    app.get("/userRole/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      res.send({ role: user?.role });
+    });
+
+    // make user role admin
+        app.patch("/users/admin/:id", verifyJWT, verifyAdmin,  async (req, res) => {
+          const id = req.params.id;
+          const filter = { _id: new ObjectId(id) };
+          const updateDoc = {
+            $set: {
+              role: "admin",
+            },
+          };
+          const result = await usersCollection.updateOne(filter, updateDoc);
+          res.send(result);
+        });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
